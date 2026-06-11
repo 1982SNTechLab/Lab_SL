@@ -302,7 +302,7 @@
     <div class="header-panel">
         <div class="select-group">
             <label for="turnoSelect">Selecione o Turno de Trabalho</label>
-            <select id="turnoSelect" onchange="renderCalendar()">
+            <select id="turnoSelect" onchange="selecionarTurno()">
                 <option value="turno1">Turno 7 às 17 (Seg a Sex)</option>
                 <option value="turno2">Turno 7 às 16 (Seg a Sáb)</option>
                 <option value="turno3">Turno 7 às 18 (Seg a Sex)</option>
@@ -339,7 +339,6 @@
     </div>
 </div>
 
-<!-- Rodapé Centralizado na Página -->
 <footer class="page-footer">
     SnTechLab® 2026
 </footer>
@@ -387,6 +386,13 @@
 
     function changeMonth(direction) {
         currentDate.setMonth(currentDate.getMonth() + direction);
+        renderCalendar();
+    }
+
+    // Nova função chamada ao alterar o select
+    function selecionarTurno() {
+        const turnoSelecionado = document.getElementById("turnoSelect").value;
+        localStorage.setItem("turnoSalvoLSL", turnoSelecionado); // Salva no navegador
         renderCalendar();
     }
 
@@ -450,7 +456,7 @@
             Object.keys(feriadosFixos.municipais).forEach(cidade => {
                 if (feriadosFixos.municipais[cidade][mmdd]) {
                     temQualquerFeriado = true;
-                    feriadosDoMesLista.push({ dia, nome: feriadosFixos.municipais[cidade][mmdd], tipo: city = cidade });
+                    feriadosDoMesLista.push({ dia, nome: feriadosFixos.municipais[cidade][mmdd], tipo: cidade });
                 }
             });
 
@@ -495,6 +501,11 @@
     }
 
     window.onload = function() {
+        // Recupera o turno salvo anteriormente, se houver
+        const turnoSalvo = localStorage.getItem("turnoSalvoLSL");
+        if (turnoSalvo && turnosConfig[turnoSalvo]) {
+            document.getElementById("turnoSelect").value = turnoSalvo;
+        }
         renderCalendar();
     };
 </script>
