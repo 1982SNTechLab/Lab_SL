@@ -215,6 +215,23 @@
             color: var(--primary-red);
         }
 
+        /* NOVO: Destaque Sublinhado de 'Dia Atual' baseado no Aparelho */
+        .day.today {
+            border-bottom: 4px solid var(--primary-blue) !important;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            animation: pulseToday 2s infinite ease-in-out;
+        }
+        
+        .day.today.feriado {
+            border-bottom: 4px solid var(--primary-red) !important;
+        }
+
+        @keyframes pulseToday {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+
         /* Rodapé / Observações de Feriados */
         .footer-obs {
             background: #F1F5F9;
@@ -389,10 +406,9 @@
         renderCalendar();
     }
 
-    // Nova função chamada ao alterar o select
     function selecionarTurno() {
         const turnoSelecionado = document.getElementById("turnoSelect").value;
-        localStorage.setItem("turnoSalvoLSL", turnoSelecionado); // Salva no navegador
+        localStorage.setItem("turnoSalvoLSL", turnoSelecionado); 
         renderCalendar();
     }
 
@@ -400,16 +416,16 @@
         const ano = currentDate.getFullYear();
         const mes = currentDate.getMonth();
 
+        // Pega o dia de hoje real do sistema (PC ou Celular)
+        const hojeReal = new Date();
+        const realDia = hojeReal.getDate();
+        const realMes = hojeReal.getMonth();
+        const realAno = hojeReal.getFullYear();
+
         document.getElementById("calendarTitle").innerText = `${meses[mes]} ${ano}`;
 
         const turnoSelecionado = document.getElementById("turnoSelect").value;
         const configTurno = turnosConfig[turnoSelecionado];
-
-        // Atualiza painel superior de horários
-        document.getElementById("workInfoBox").innerHTML = `
-            <h3>${document.getElementById("turnoSelect").options[document.getElementById("turnoSelect").selectedIndex].text}</h3>
-            <p>${configTurno.descricao}</p>
-        `;
 
         const primeiroDiaMes = new Date(ano, mes, 1).getDay();
         const ultimoDiaMes = new Date(ano, mes + 1, 0).getDate();
@@ -419,6 +435,12 @@
         
         const listaFeriadosRodape = document.getElementById("holidayList");
         listaFeriadosRodape.innerHTML = "";
+
+        // Atualiza painel superior de horários
+        document.getElementById("workInfoBox").innerHTML = `
+            <h3>${document.getElementById("turnoSelect").options[document.getElementById("turnoSelect").selectedIndex].text}</h3>
+            <p>${configTurno.descricao}</p>
+        `;
 
         // Dias vazios no início do mês
         for (let i = 0; i < primeiroDiaMes; i++) {
@@ -437,6 +459,11 @@
             const mmdd = `${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
             const diaSemana = new Date(ano, mes, dia).getDay();
 
+            // Adiciona marcação se for exatamente o dia atual do aparelho do usuário
+            if (dia === realDia && mes === realMes && ano === realAno) {
+                dayDiv.classList.add("today");
+            }
+
             // Número centralizado
             const numSpan = document.createElement("span");
             numSpan.classList.add("day-num");
@@ -445,14 +472,14 @@
 
             let temQualquerFeriado = false;
 
-            // 1. Checa se é Feriado Nacional (Fixo ou Móvel)
+            // 1. Checa se é Feriado Nacional
             if (feriadosFixos.nacionais[mmdd] || (ano === 2026 && feriadosMoveis2026[mmdd])) {
                 const nomeF = feriadosFixos.nacionais[mmdd] || feriadosMoveis2026[mmdd];
                 temQualquerFeriado = true;
                 feriadosDoMesLista.push({ dia, nome: nomeF, tipo: "Nacional" });
             }
 
-            // 2. Checa de forma abrangente todas as cidades para o dia atual
+            // 2. Checa de forma abrangente todas as cidades
             Object.keys(feriadosFixos.municipais).forEach(cidade => {
                 if (feriadosFixos.municipais[cidade][mmdd]) {
                     temQualquerFeriado = true;
@@ -460,7 +487,7 @@
                 }
             });
 
-            // Aplica os estilos prioritários no quadradinho do calendário
+            // Aplica os estilos
             const ehFolga = configTurno.folgas.includes(diaSemana);
 
             if (temQualquerFeriado) {
@@ -484,7 +511,6 @@
         if (feriadosDoMesLista.length === 0) {
             listaFeriadosRodape.innerHTML = "<li style='font-style: italic; color:#777; text-align:center;'>Nenhum feriado nacional ou regional neste mês.</li>";
         } else {
-            // Ordena os feriados por dia do mês
             feriadosDoMesLista.sort((a, b) => a.dia - b.dia).forEach(f => {
                 const li = document.createElement("li");
                 li.classList.add("holiday-item");
@@ -501,7 +527,6 @@
     }
 
     window.onload = function() {
-        // Recupera o turno salvo anteriormente, se houver
         const turnoSalvo = localStorage.getItem("turnoSalvoLSL");
         if (turnoSalvo && turnosConfig[turnoSalvo]) {
             document.getElementById("turnoSelect").value = turnoSalvo;
