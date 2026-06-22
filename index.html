@@ -116,12 +116,33 @@
             justify-content: space-between;
             align-items: center;
             padding: 16px;
+            gap: 8px;
         }
 
-        .calendar-nav h2 {
-            color: var(--primary-blue);
+        .date-selectors {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .date-selectors select {
+            padding: 6px 30px 6px 10px;
+            font-size: 1.1rem;
             font-weight: 700;
-            font-size: 1.3rem;
+            color: var(--primary-blue);
+            border: 2px solid transparent;
+            background-color: transparent;
+            border-radius: 6px;
+            width: auto;
+        }
+
+        .date-selectors select:hover {
+            background-color: var(--light-blue);
+        }
+
+        .date-selectors select:focus {
+            border-color: var(--primary-blue);
+            background-color: white;
         }
 
         .nav-btn {
@@ -134,6 +155,7 @@
             font-weight: 600;
             font-size: 0.9rem;
             transition: all 0.2s;
+            white-space: nowrap;
         }
 
         .nav-btn:hover {
@@ -215,7 +237,7 @@
             color: var(--primary-red);
         }
 
-        /* NOVO: Destaque Sublinhado de 'Dia Atual' baseado no Aparelho */
+        /* Destaque Sublinhado de 'Dia Atual' */
         .day.today {
             border-bottom: 4px solid var(--primary-blue) !important;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
@@ -310,6 +332,10 @@
                 padding: 4px 10px;
                 font-size: 0.8rem;
             }
+            .date-selectors select {
+                font-size: 1rem;
+                padding: 4px 20px 4px 4px;
+            }
         }
     </style>
 </head>
@@ -325,6 +351,8 @@
                 <option value="turno3">Turno 7 às 18 (Seg a Sex)</option>
                 <option value="turno4">Turno 7 às 11 (Seg a Sáb)</option>
                 <option value="turno5">Turno 7 às 13 (Seg a Sex)</option>
+                <option value="t1">Ciclo T1 (Alternado Quinzenal)</option>
+                <option value="t2">Ciclo T2 (Alternado Quinzenal)</option>
             </select>
         </div>
         
@@ -333,7 +361,10 @@
 
     <div class="calendar-nav">
         <button class="nav-btn" onclick="changeMonth(-1)">◀ Voltar</button>
-        <h2 id="calendarTitle">Janeiro 2026</h2>
+        <div class="date-selectors">
+            <select id="mesSelect" onchange="irParaData()"></select>
+            <select id="anoSelect" onchange="irParaData()"></select>
+        </div>
         <button class="nav-btn" onclick="changeMonth(1)">Avançar ▶</button>
     </div>
 
@@ -361,13 +392,23 @@
 </footer>
 
 <script>
-    // Configurações de Turnos
+    // Configurações de Turnos Estáticos e Dinâmicos (T1 e T2)
     const turnosConfig = {
-        turno1: { descricao: "Horário de 7 às 17 Segunda a sexta. Faz 01h12 de Refeição.", folgas: [0, 6] },
-        turno2: { descricao: "Horário de 7 às 16 segunda a sexta, sábado de 7 às 11h00. Faz 01hr de Refeição.", folgas: [0] },
-        turno3: { descricao: "Horário de 7 às 18 segunda a sexta. Faz 02hrs de Refeição.", folgas: [0, 6] },
-        turno4: { descricao: "Horário de 7 às 11 segunda a sábado. Sem expediente estendido.", folgas: [0] },
-        turno5: { descricao: "Horário de 7 às 13 segunda a sexta.", folgas: [0, 6] }
+        turno1: { tipo: "estatico", descricao: "Horário de 7 às 17 Segunda a sexta. Faz 01h12 de Refeição.", folgas: [0, 6] },
+        turno2: { tipo: "estatico", descricao: "Horário de 7 às 16 segunda a sexta, sábado de 7 às 11h00. Faz 01hr de Refeição.", folgas: [0] },
+        turno3: { tipo: "estatico", descricao: "Horário de 7 às 18 segunda a sexta. Faz 02hrs de Refeição.", folgas: [0, 6] },
+        turno4: { tipo: "estatico", descricao: "Horário de 7 às 11 segunda a sábado. Sem expediente estendido.", folgas: [0] },
+        turno5: { tipo: "estatico", descricao: "Horário de 7 às 13 segunda a sexta.", folgas: [0, 6] },
+        t1: { 
+            tipo: "ciclico", 
+            descricao: "S1: Seg a Sex 7h-17h (1h12 ref), Sáb/Dom Folga | S2: Seg a Sex 7h-16h (1h ref), Sáb 7h-11h, Dom Folga.",
+            invertido: false // Começa na Semana 1
+        },
+        t2: { 
+            tipo: "ciclico", 
+            descricao: "S1: Seg a Sex 7h-16h (1h ref), Sáb 7h-11h, Dom Folga | S2: Seg a Sex 7h-17h (1h12 ref), Sáb/Dom Folga.",
+            invertido: true // Começa na Semana 2 em relação ao T1
+        }
     };
 
     // Banco de Dados Unificado de Feriados
@@ -391,7 +432,6 @@
         }
     };
 
-    // Feriados móveis calculados para o ano de 2026
     const feriadosMoveis2026 = {
         "02-17": "Carnaval",
         "04-03": "Sexta-feira Santa",
@@ -400,6 +440,44 @@
 
     let currentDate = new Date();
     const meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
+    // Data Base de referência fixa para calcular as semanas quinzenais do T1/T2 (Uma segunda-feira conhecida)
+    const SEGUNDA_BASE = new Date(2025, 11, 29); // 29 de Dezembro de 2025
+
+    function preencherSeletores() {
+        const mesSelect = document.getElementById("mesSelect");
+        const anoSelect = document.getElementById("anoSelect");
+
+        mesSelect.innerHTML = "";
+        anoSelect.innerHTML = "";
+
+        meses.forEach((m, index) => {
+            let opt = document.createElement("option");
+            opt.value = index;
+            opt.innerText = m;
+            mesSelect.appendChild(opt);
+        });
+
+        for (let a = 2020; a <= 2035; a++) {
+            let opt = document.createElement("option");
+            opt.value = a;
+            opt.innerText = a;
+            anoSelect.appendChild(opt);
+        }
+    }
+
+    function atualizarValoresSeletores() {
+        document.getElementById("mesSelect").value = currentDate.getMonth();
+        document.getElementById("anoSelect").value = currentDate.getFullYear();
+    }
+
+    function irParaData() {
+        const m = parseInt(document.getElementById("mesSelect").value);
+        const a = parseInt(document.getElementById("anoSelect").value);
+        currentDate.setFullYear(a);
+        currentDate.setMonth(m);
+        renderCalendar();
+    }
 
     function changeMonth(direction) {
         currentDate.setMonth(currentDate.getMonth() + direction);
@@ -412,17 +490,34 @@
         renderCalendar();
     }
 
+    // Calcula se um dia específico pertence à "Primeira Semana (S1)" ou "Segunda Semana (S2)"
+    function determinarSemanaCiclo(dataAlvo, invertido) {
+        const msPorDia = 24 * 60 * 60 * 1000;
+        const diferencaDias = Math.floor((dataAlvo - SEGUNDA_BASE) / msPorDia);
+        
+        // Determina o número de semanas desde a data base
+        const semanasPassadas = Math.floor(diferencaDias / 7);
+        
+        // Verifica se a semana atual é par ou ímpar (Ciclo Quinzenal)
+        let ehSegundaSemana = semanasPassadas % 2 !== 0;
+        
+        if (invertido) {
+            ehSegundaSemana = !ehSegundaSemana;
+        }
+        
+        return ehSegundaSemana ? "S2" : "S1";
+    }
+
     function renderCalendar() {
         const ano = currentDate.getFullYear();
         const mes = currentDate.getMonth();
 
-        // Pega o dia de hoje real do sistema (PC ou Celular)
         const hojeReal = new Date();
         const realDia = hojeReal.getDate();
         const realMes = hojeReal.getMonth();
         const realAno = hojeReal.getFullYear();
 
-        document.getElementById("calendarTitle").innerText = `${meses[mes]} ${ano}`;
+        atualizarValoresSeletores();
 
         const turnoSelecionado = document.getElementById("turnoSelect").value;
         const configTurno = turnosConfig[turnoSelecionado];
@@ -436,13 +531,11 @@
         const listaFeriadosRodape = document.getElementById("holidayList");
         listaFeriadosRodape.innerHTML = "";
 
-        // Atualiza painel superior de horários
         document.getElementById("workInfoBox").innerHTML = `
             <h3>${document.getElementById("turnoSelect").options[document.getElementById("turnoSelect").selectedIndex].text}</h3>
             <p>${configTurno.descricao}</p>
         `;
 
-        // Dias vazios no início do mês
         for (let i = 0; i < primeiroDiaMes; i++) {
             const emptyDiv = document.createElement("div");
             emptyDiv.classList.add("day", "empty");
@@ -451,20 +544,18 @@
 
         let feriadosDoMesLista = [];
 
-        // Loop de construção dos dias do mês
         for (let dia = 1; dia <= ultimoDiaMes; dia++) {
             const dayDiv = document.createElement("div");
             dayDiv.classList.add("day");
 
             const mmdd = `${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
-            const diaSemana = new Date(ano, mes, dia).getDay();
+            const dataAtualLoop = new Date(ano, mes, dia);
+            const diaSemana = dataAtualLoop.getDay();
 
-            // Adiciona marcação se for exatamente o dia atual do aparelho do usuário
             if (dia === realDia && mes === realMes && ano === realAno) {
                 dayDiv.classList.add("today");
             }
 
-            // Número centralizado
             const numSpan = document.createElement("span");
             numSpan.classList.add("day-num");
             numSpan.innerText = dia;
@@ -472,23 +563,35 @@
 
             let temQualquerFeriado = false;
 
-            // 1. Checa se é Feriado Nacional
             if (feriadosFixos.nacionais[mmdd] || (ano === 2026 && feriadosMoveis2026[mmdd])) {
                 const nomeF = feriadosFixos.nacionais[mmdd] || feriadosMoveis2026[mmdd];
                 temQualquerFeriado = true;
                 feriadosDoMesLista.push({ dia, nome: nomeF, tipo: "Nacional" });
             }
 
-            // 2. Checa de forma abrangente todas as cidades
             Object.keys(feriadosFixos.municipais).forEach(cidade => {
                 if (feriadosFixos.municipais[cidade][mmdd]) {
                     temQualquerFeriado = true;
-                    feriadosDoMesLista.push({ dia, nome: feriadosFixos.municipais[cidade][mmdd], tipo: cidade });
+                    feriadosDoMesLista.push({ dia, nome: feriadosFixos.municipais[cidade][mmdd], tipo: city = cidade });
                 }
             });
 
-            // Aplica os estilos
-            const ehFolga = configTurno.folgas.includes(diaSemana);
+            // Lógica para determinar Folga / Trabalho
+            let ehFolga = false;
+
+            if (configTurno.tipo === "estatico") {
+                ehFolga = configTurno.folgas.includes(diaSemana);
+            } else if (configTurno.tipo === "ciclico") {
+                const semanaAtual = determinarSemanaCiclo(dataAtualLoop, configTurno.invertido);
+                
+                if (semanaAtual === "S1") {
+                    // S1: trabalha de segunda a sexta, folga sábado (6) e domingo (0)
+                    ehFolga = (diaSemana === 0 || diaSemana === 6);
+                } else {
+                    // S2: trabalha de segunda a sábado, folga apenas Domingo (0)
+                    ehFolga = (diaSemana === 0);
+                }
+            }
 
             if (temQualquerFeriado) {
                 dayDiv.classList.add("feriado");
@@ -507,16 +610,13 @@
             gridDias.appendChild(dayDiv);
         }
 
-        // Renderização da lista inteligente de observações no rodapé
         if (feriadosDoMesLista.length === 0) {
             listaFeriadosRodape.innerHTML = "<li style='font-style: italic; color:#777; text-align:center;'>Nenhum feriado nacional ou regional neste mês.</li>";
         } else {
             feriadosDoMesLista.sort((a, b) => a.dia - b.dia).forEach(f => {
                 const li = document.createElement("li");
                 li.classList.add("holiday-item");
-                
                 const tagClass = f.tipo === "Nacional" ? "city-tag nacional" : "city-tag";
-                
                 li.innerHTML = `
                     <span>Dia ${String(f.dia).padStart(2, '0')}:</span> ${f.nome} 
                     <span class="${tagClass}">${f.tipo}</span>
@@ -527,6 +627,7 @@
     }
 
     window.onload = function() {
+        preencherSeletores();
         const turnoSalvo = localStorage.getItem("turnoSalvoLSL");
         if (turnoSalvo && turnosConfig[turnoSalvo]) {
             document.getElementById("turnoSelect").value = turnoSalvo;
